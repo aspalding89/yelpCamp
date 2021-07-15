@@ -2,20 +2,10 @@ const express = require("express");
 const path = require("path");
 const mongoose = require("mongoose");
 const ejsMate = require("ejs-mate");
-const { campgroundSchema, reviewSchema } = require("./schemas");
 const methodOverride = require("method-override");
 const expressError = require('./utilities/expressError')
-const catchAsync = require('./utilities/catchAsync')
-const Review = require("./models/reviews");
-const Campground = require('./models/campground')
-const campgrounds = require("./routes/campgrounds");
 
-mongoose.connect(`mongodb://localhost:27017/yelp-camp`, {
-	useNewUrlParser: true,
-	useCreateIndex: true,
-	useUnifiedTopology: true,
-});
-
+mongoose.connect(`mongodb://localhost:27017/yelp-camp`, { useNewUrlParser: true, useCreateIndex: true, useUnifiedTopology: true, });
 mongoose.connection.on("error", console.error.bind(console, "connection error"));
 mongoose.connection.once("open", () => { });
 
@@ -27,49 +17,25 @@ app.set("views", path.join(__dirname, "views"));
 app.use(express.urlencoded({ extended: true }));
 app.use(methodOverride("_method"));
 
-
-
-const validateReview = (req, res, next) => {
-	const { error } = reviewSchema.validate(req.body);
-	if (error) {
-		const msg = error.details.map(el => el.message).join(",");
-		throw new expressError(msg, 400);
-	} else {
-		next();
-	}
-};
+// ROUTER
+const campgrounds = require("./routes/campgrounds");
+const reviews = require('./routes/reviews')
 app.use("/campgrounds", campgrounds);
+app.use('/campgrounds/:id/reviews', reviews)
+
+//ROUTES
 app.get("/", (req, res) => {
 	res.render("home");
 });
 
-app.post(
-	"/campgrounds/:id/reviews", validateReview, catchAsync(async (req, res) => {
-		const campground = await Campground.findById(req.params.id);
-		const review = new Review(req.body.review);
-		campground.reviews.push(review);
-		await review.save();
-		await campground.save();
-		res.redirect(`/campgrounds/${campground._id}`);
-	})
-);
-
-app.delete(
-	"/campgrounds/:id/reviews/:reviewId", catchAsync(async (req, res) => {
-		const { id, reviewId } = req.params;
-		await Campground.findByIdAndUpdate(id, { $pull: { reviews: reviewId } });
-		await Review.findByIdAndDelete(reviewId);
-		res.redirect(`/campgrounds/${id}`);
-	})
-);
-
 app.all("*", (req, res, next) => {
 	next(new expressError("Page not found", 401));
 });
-
+//ERROR ROUTE
 app.use((err, req, res, next) => {
 	const { statusCode = 500 } = err;
 	if (!err.message) err.message = "Oh no, something went wrong";
 	res.status(statusCode).render("error", { err });
 });
+//START SERVER
 app.listen(3000, () => console.log("Server started on port 3000"));
